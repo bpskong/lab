@@ -10,6 +10,8 @@ set(SRC_LIST
 	ref.cpp
 	str.h
 	str.cpp
+	io.h
+	io.cpp
 	main.cpp
 )
 include_directories(${CMAKE_SOURCE_DIR})
