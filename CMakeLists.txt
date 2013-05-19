@@ -8,6 +8,8 @@ set(SRC_LIST
 	atomic.h
 	ref.h
 	ref.cpp
+	str.h
+	str.cpp
 	main.cpp
 )
 include_directories(${CMAKE_SOURCE_DIR})
