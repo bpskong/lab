@@ -4,6 +4,10 @@ set(CMAKE_CXX_FLAGS
 	"${CMAKE_C_FLAGS} -std=c++0x"
 )
 set(SRC_LIST
+	global.h
+	atomic.h
+	ref.h
+	ref.cpp
 	main.cpp
 )
 include_directories(${CMAKE_SOURCE_DIR})

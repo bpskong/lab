@@ -1,0 +1,4 @@
+#ifndef BPSLAB_GLOBAL_H
+#define BPSLAB_GLOBAL_H
+
+#endif // BPSLAB_GLOBAL_H
