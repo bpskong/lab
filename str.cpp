@@ -23,6 +23,7 @@ const unsigned char g_table_upcase[256] =
 str ws2s(const wstr& ws)
 {
 	str s(ws.length() * 2 + 1, 0);
-	wcstombs(&s[0], &ws[0], s.capacity());
+	size_t n = wcstombs(&s[0], &ws[0], s.capacity());
+	s.resize(n);
 	return s;
 }
