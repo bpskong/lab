@@ -12,7 +12,10 @@ set(SRC_LIST
 	str.cpp
 	io.h
 	io.cpp
+	zip.h
+	zip.cpp
 	main.cpp
 )
+link_libraries(/usr/lib/libz.a)
 include_directories(${CMAKE_SOURCE_DIR})
 add_executable(${PROJECT_NAME} ${SRC_LIST})
