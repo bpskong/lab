@@ -9,6 +9,66 @@
 typedef std::vector<byte> ByteArray;
 
 #pragma pack(1)
+struct Zip64ExtraField
+{
+	uint16_t tag;
+	uint16_t sizeOfZip64ExtraField;
+	uint64_t uncompressedSize;
+	uint64_t compressedSize;
+	uint64_t offsetOfLocalHeader;
+	uint32_t diskNum;
+
+	Zip64ExtraField()
+	{
+		::memset(this, 0, 0);
+	}
+	bool parse(DataInput* input)
+	{
+		return ReadData(input, *this);
+	}
+};
+
+struct Zip64EndOfCentralDirectoryLocator
+{
+	uint32_t signature;
+	uint32_t numOfDisk;
+	uint64_t relativeOffsetOfCentralDirectory;
+	uint16_t totalNumOfDisk;
+
+	Zip64EndOfCentralDirectoryLocator()
+	{
+		::memset(this, 0, 0);
+	}
+	bool parse(DataInput* input)
+	{
+		return ReadData(input, *this);
+	}
+};
+
+struct Zip64EndOfCentralDirectory
+{
+	uint32_t signature;
+	uint64_t sizeOfZip64EndOfCentralDirectory;
+	uint16_t versionMadeBy;
+	uint16_t versionNeededToExtract;
+	uint32_t diskNum;
+	uint32_t diskNumOfCentralDirectory;
+	uint64_t totalEntriesOnThisDisk;
+	uint64_t totalEntries;
+	uint64_t sizeOfCentralDirectory;
+	uint64_t startOfCentralDirectory;
+
+	Zip64EndOfCentralDirectory()
+	{
+		::memset(this, 0, 0);
+	}
+
+	bool parse(DataInput* input)
+	{
+		return ReadData(input, *this);
+	}
+};
+
 struct EndOfCentralDirectory
 {
 	uint32_t signature;
@@ -480,13 +540,25 @@ public:
 		LocalFileHeader localFileHeader;
 		if (!localFileHeader.parse(_srcInput.get()))
 			return NULL;
-		uint32_t offset =
-			_srcOffset +
-			header->relativeOffsetOfLocalHeader +
-			sizeof(LocalFileHeader) +
-			localFileHeader.fileNameLength +
-			localFileHeader.extraFieldLength;
-		return new ZipInput(_srcInput.get(), header, offset);
+
+		uint32_t offsetOfExtra =
+				_srcOffset +
+				header->relativeOffsetOfLocalHeader +
+				sizeof(LocalFileHeader) +
+				localFileHeader.fileNameLength;
+
+		if (localFileHeader.versionNeededToExtract == 45)
+		{
+			_srcInput->seek(offsetOfExtra);
+			Zip64ExtraField extraField;
+			extraField.parse(_srcInput.get());
+			header->compressedSize = extraField.compressedSize;
+			header->uncompressedSize = extraField.uncompressedSize;
+		}
+
+		uint32_t dataOffset = offsetOfExtra + localFileHeader.extraFieldLength;
+		_srcInput->seek(dataOffset);
+		return new ZipInput(_srcInput.get(), header, dataOffset);
 	}
 
 	bool exist(const wstr& name)
@@ -540,11 +612,38 @@ private:
 		_vaild = 0;
 		if (_srcInput == NULL)
 			_srcInput = OpenFile(_fileName);
-		if (!_seekEndOfCentralDirectory(_srcInput.get()) ||
-			!_endOfCentralDirectory.parse(_srcInput.get()))
+		if (!_seekEndOfCentralDirectory(_srcInput.get()))
 			return false;
-		_srcInput->seek(_srcOffset + _endOfCentralDirectory.startOfCentralDirectory);
-		for (uint16_t i = 0; i < _endOfCentralDirectory.totalEntries; i++)
+		long pos = _srcInput->position();
+		if (!_endOfCentralDirectory.parse(_srcInput.get()))
+			return false;
+
+		uint16_t totalEntries = 0;
+		uint32_t startOfCentralDirectory = 0;
+		if (_endOfCentralDirectory.totalEntries == 0xffff)
+		{
+			Zip64EndOfCentralDirectoryLocator zip64Locator;
+			Zip64EndOfCentralDirectory zip64EndOfCentralDirectory;
+
+			_srcInput->seek(pos - 20);
+			if (!zip64Locator.parse(_srcInput.get()))
+				return false;
+			_srcInput->seek(zip64Locator.relativeOffsetOfCentralDirectory);
+			if (!zip64EndOfCentralDirectory.parse(_srcInput.get()))
+				return false;
+
+			totalEntries = zip64EndOfCentralDirectory.totalEntries;
+			startOfCentralDirectory = zip64EndOfCentralDirectory.startOfCentralDirectory;
+
+		}
+		else
+		{
+			totalEntries = _endOfCentralDirectory.totalEntries;
+			startOfCentralDirectory = _endOfCentralDirectory.startOfCentralDirectory;
+		}
+
+		_srcInput->seek(_srcOffset + startOfCentralDirectory);
+		for (uint16_t i = 0; i < totalEntries; i++)
 		{
 			CentralDirectoryFileHeader header;
 			if (!header.parse(_srcInput.get()))
